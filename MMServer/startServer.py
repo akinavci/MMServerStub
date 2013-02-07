@@ -50,6 +50,6 @@ def index(name='World'):
     return template('<b>Hello {{name}}</b>!', name=name)
 
 if __name__ == '__main__':
-    print("akin")
     run(host='localhost', port=6060, debug=True)
+    
     pass
