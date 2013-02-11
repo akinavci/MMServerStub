@@ -265,13 +265,9 @@ def handleGetSingleEntity(entityType, entityId):
     newJsonResponse = json.dumps(dictResponseBody)
     print(newJsonResponse)
     
+    # set headers
     for key in dictResponseHeaders.keys():
         response.set_header(key, dictResponseHeaders[key])
-                
-    
-#    if dictResponseHeaders.has_key('Content-Type'):
-#        response.content_type = dictResponseHeaders['Content-Type']
-#        print(response.content_type)
     
     response.status = int(listResponses[indexResponses])
     
@@ -291,7 +287,7 @@ def handleGetSingleEntity(entityType, entityId):
 
 if __name__ == '__main__':
     
-    if prepare('deneme.txt', 'C:/Users/Administrator/Documents/GitHub/MMServerStub/MMServer/test'):
+    if prepare('testSuite.txt', 'C:/Users/Administrator/Documents/GitHub/MMServerStub/MMServer/test'):
         print('ready to run the server')
     else:
         print('there is a problem, server will not start')
