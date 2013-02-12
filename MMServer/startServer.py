@@ -5,13 +5,9 @@ Created on Jan 25, 2013
 '''
 
 import json
-import string
-import glob
 import os
-import pickle
 
-from bottle import get, post, delete, put, route, run, template, request, response
-from warlock.core import model_factory
+from bottle import get, post, delete, put, run, template, request, response
 
 listResponses = []
 indexResponses = 0
@@ -42,14 +38,13 @@ def prepare(testSuiteFileUrl, responseFolderUrl):
     This method reads the proper response file depending on the response code
     from the file, entity type, and the operation (create, read, update, etc.) 
 '''
-def readResponseFile(entityType, operationType):
-    
+def readResponseFile(entityType, operationType):    
     global listResponses
     global indexResponses
     global responseFilesFolderUrl
     global maxIndexResponses
     
-    if indexResponses == maxIndexResponses:
+    if indexResponses >= maxIndexResponses:
         print('end of the file, should stop')
         return None
     else:
@@ -71,7 +66,11 @@ def readResponseFile(entityType, operationType):
         # file does not exist, failed
         print('File does not exist, failed: ' + strFileUrl)  
         return None 
-       
+
+'''
+    This method checks if the request headers contain a content-type
+    header for "application/json"
+'''       
 def checkContentType(request):
     # check if the request is with content-type header
     tmpIndex = (request.headers.get('Content-Type')).find('application/json')
@@ -82,17 +81,24 @@ def checkContentType(request):
         # TODO Return a proper message!
         print("Return a proper message! " + request.headers.get('Content-Type'))
         return False
-    
+
+'''
+    This method checks if the request has an authorization header.
+'''    
 def checkAuthorization(request):
     # check if the request is with authentication header
-    if request.headers.get('Authorization') != '':
+    if request.headers.get('Authorization') != None:
         print("Authorization header is implemented!")
         return True
     else:
         # TODO Return a proper message!
         print("Return a proper message!")
         return False  
-    
+
+'''
+    This method checks if the request is suitable for temporary
+    MM8 implementation.
+'''    
 def checkMm8Request(request):
     # check if the request is with authentication header
     if request.headers.get('Accept') == 'application/vnd.mediamanager.jbpm+json':
@@ -109,134 +115,177 @@ def checkMm8Request(request):
     This is the method that responds to Create command 
 '''
 @post('/api/types/<entityType>/entities')
-def handleCreate(entityType):
-        
-    if checkAuthorization(request) and checkContentType(request) and checkMm8Request(request):
-        # all required headers are provided
+def handleCreate(entityType):    
+    global indexResponses
+    global listResponses
+    
+    # check headers but they are not really important for read
+    if checkAuthorization(request):
         pass
     else:
-        # TODO: do something meaningful
-        # headers are not complete, fail assertion
+        response.status = 401
+        return "{\"message\": \"authorization required\"}"
         pass
     
-    # get the request body
-    jsonInputData = json.load(request.body)
-    strInputData = json.dumps(jsonInputData)
-    print("request = " + strInputData)
-    newStr = string.replace(strInputData, 'false', 'False')
-    newStr = string.replace(strInputData, 'true', 'True')
-    print("New str = " + newStr)
-    newJsonInput = json.dumps(newStr)
-    newJsonInput = json.loads(newJsonInput)
+    if checkContentType(request):
+        pass
+    else:
+        # this should return 412
+        response.status = 412
+        return "{\"message\": \"api.invalidContentType.error\"}"
     
+    if checkMm8Request(request):
+        pass
+    else:
+        response.status = 422
+        return "{\"message\":\"Invalid data format: attributes key required\"}"
+        pass
     
+    dictResponse = readResponseFile(entityType, 'createEntity')
     
-    # we know the entity type so load the right schema
+    if dictResponse == None:
+        # response file not found
+        print('file not found so will return a not-found message')
+        response.status = 404
+        indexResponses += 1
+        return template('<b>CreateEntity called for {{entityType}} but the response file could not be found</b>!', entityType=entityType)
     
-    # for now I am loading a simple one
-    schema = {
-      "name": "imageSubcontent",
-      "type": "object",
-      "javaType": "ImageSubcontent",
-      "additionalProperties": False,
-      "properties": {
-        "xResolution": {
-          "title": "xResolution",
-          "type": "integer",
-          "javaType": "XResolution",
-          "additionalProperties": False
-        },
-        "yResolution": {
-          "title": "yResolution",
-          "type": "integer",
-          "javaType": "YResolution",
-          "additionalProperties": False
-        },
-        "language": {
-          "title": "language",
-          "type": "object",
-          "javaType": "Locale",
-          "properties": {
-            "en_US": {
-              "title": "en_US",
-              "type": "string",
-              "additionalProperties": False
-            },
-            "fr_FR": {
-              "title": "fr_FR",
-              "type": "string",
-              "additionalProperties": False
-            },
-            "de_DE": {
-              "title": "de_DE",
-              "type": "string",
-              "additionalProperties": False
-            },
-            "zh_CN": {
-              "title": "zh_CN",
-              "type": "string",
-              "additionalProperties": False
-            }
-          },
-          "additionalProperties": False
-        },
-        "_links": {
-          "title": "Links",
-          "type": "array",
-          "items": [
-            {
-              "$ref": "#\/properties\/_link"
-            }
-          ],
-          "additionalProperties": False
-        }
-      },
-      "extends": {
-        "$ref": "#\/properties\/subcontent"
-      }
-    }
+    dictResponseHeaders = dictResponse['headers']
+    dictResponseBody = dictResponse['body']
     
-    schema2 = {
-        'name': 'Country',
-        'properties': {
-            'name': {'type': 'string'},
-            'abbreviation': {'type': 'string'},
-        },
-        'additionalProperties': False,
-    }
+    # set headers
+    for key in dictResponseHeaders.keys():
+        response.set_header(key.encode('ascii','ignore'), dictResponseHeaders[key].encode('ascii','ignore'))
     
-    imageSubcontent = model_factory(schema)
+    newJsonResponse = json.dumps(dictResponseBody)
     
-    imageSubcontent.xResolution = 10 
-    imageSubcontent.yResolution = 15
-    lang = {"en_US": "111", "fr_FR":"222", "de_DE":"3333", "zh_CN":"444" }
-    imageSubcontent.language = lang
-    print(imageSubcontent.language)
+    response.status = int(listResponses[indexResponses])
     
-    sample = model_factory(schema2)
+    # finally increase the index
+    indexResponses += 1
     
-    # TODO: This requires authentication
-    # TODO: Edit response code: 201
-    return template('<b>Create called for {{entityType}}</b>!', entityType=entityType)
+    return newJsonResponse
 
 @delete('/api/types/<entityType>/entities/<entityId>')
 def handleDelete(entityType, entityId):
-    # TODO: This requires authentication
     # TODO: Edit response code: 204
-    return template('<b>Delete called for {{entityType}}:{{entityId}}</b>!', entityType=entityType, entityId=entityId)
+    
+    global indexResponses
+    global listResponses
+    
+    # check headers but they are not really important for read
+    if checkAuthorization(request):
+        pass
+    else:
+        response.status = 401
+        return "{\"message\": \"authorization required\"}"
+        pass
+    
+    if checkContentType(request):
+        pass
+    else:
+        # this is not important for this request
+        pass
+    
+    if checkMm8Request(request):
+        pass
+    else:
+        # this is not important for this request
+        pass
+    
+    dictResponse = readResponseFile(entityType, 'deleteEntity')
+    
+    if dictResponse == None:
+        # response file not found
+        print('file not found so will return a not-found message')
+        response.status = 404
+        indexResponses += 1
+        return template('<b>DeleteEntity called for {{entityType}}:{{entityId}} but the response file could not be found</b>!', entityType=entityType, entityId=entityId)
+    
+    dictResponseHeaders = dictResponse['headers']
+    dictResponseBody = dictResponse['body']
+    
+    # set headers
+    for key in dictResponseHeaders.keys():
+        response.set_header(key.encode('ascii','ignore'), dictResponseHeaders[key].encode('ascii','ignore'))
+    
+    newJsonResponse = json.dumps(dictResponseBody)
+    
+    response.status = int(listResponses[indexResponses])
+    
+    # finally increase the index
+    indexResponses += 1
+    
+    return newJsonResponse
 
 @put('/api/types/<entityType>/entities/<entityId>')
 def handleEdit(entityType, entityId):
-    # TODO: This requires authentication
-    # TODO: Edit response code: 200
-    return template('<b>Edit called for {{entityType}}:{{entityId}}</b>!', entityType=entityType, entityId=entityId)
+    global indexResponses
+    global listResponses
+    
+    # check headers but they are not really important for read
+    if checkAuthorization(request):
+        pass
+    else:
+        response.status = 401
+        return "{\"message\": \"authorization required\"}"
+        pass
+    
+    if checkContentType(request):
+        pass
+    else:
+        # this should return 412
+        response.status = 412
+        return "{\"message\":\"Requests must be made with Content-Type \"application\/json\" header\"}"
+    
+    if checkMm8Request(request):
+        pass
+    else:
+        response.status = 422
+        return "{\"message\":\"Invalid data format: attributes key required\"}"
+        pass
+    
+    dictResponse = readResponseFile(entityType, 'editEntity')
+    
+    if dictResponse == None:
+        # response file not found
+        print('file not found so will return a not-found message')
+        response.status = 404
+        indexResponses += 1
+        return template('<b>CreateEntity called for {{entityType}} but the response file could not be found</b>!', entityType=entityType)
+    
+    dictResponseHeaders = dictResponse['headers']
+    dictResponseBody = dictResponse['body']
+    
+    # set headers
+    for key in dictResponseHeaders.keys():
+        response.set_header(key.encode('ascii','ignore'), dictResponseHeaders[key].encode('ascii','ignore'))
+    
+    newJsonResponse = json.dumps(dictResponseBody)
+    
+    response.status = int(listResponses[indexResponses])
+    
+    # finally increase the index
+    indexResponses += 1
+    
+    return newJsonResponse    
 
 @get('/api/types/<entityType>/entities/<entityId>')
 def handleGetSingleEntity(entityType, entityId):
     global indexResponses
     global listResponses
     
-    # TODO: Edit response code: 200
+    # check headers but they are not really important for read
+    if checkContentType(request):
+        pass
+    else:
+        pass
+    
+    if checkMm8Request(request):
+        pass
+    else:
+        pass            
+    
     # handle the query parameters
     detached = request.query.detached
     deleted = request.query.deleted
@@ -254,35 +303,26 @@ def handleGetSingleEntity(entityType, entityId):
     
     if dictResponse == None:
         # TODO: file not found
-        pass
+        print('file not found so will return a normal message')
+        response.status = 404
+        indexResponses += 1
+        return template('<b>GetSingleEntity called for {{entityType}}:{{entityId}} but the response file could not be found</b>!', entityType=entityType, entityId=entityId)
     
     dictResponseHeaders = dictResponse['headers']
-    dictResponseBody = dictResponse['body'] 
-    
-    print(dictResponseHeaders)
-    print(dictResponseBody)
-    
-    newJsonResponse = json.dumps(dictResponseBody)
-    print(newJsonResponse)
+    dictResponseBody = dictResponse['body']
     
     # set headers
     for key in dictResponseHeaders.keys():
-        response.set_header(key, dictResponseHeaders[key])
+        response.set_header(key.encode('ascii','ignore'), dictResponseHeaders[key].encode('ascii','ignore')) 
+    
+    newJsonResponse = json.dumps(dictResponseBody)
     
     response.status = int(listResponses[indexResponses])
     
     # finally increase the index
     indexResponses += 1
     
-#    newStrResponse = string.replace(strResponse, 'false', 'False')
-#    newStrResponse = string.replace(strResponse, 'true', 'True')
-#    print("New str = " + newStrResponse)
-#    newJsonResponse = json.dumps(newStrResponse)
-#    newJsonResponse = json.loads(newJsonResponse)
-#    
-#    print(newJsonResponse[0])
-        
-    return template('<b>GetSingleEntity called for {{entityType}}:{{entityId}}</b>!', entityType=entityType, entityId=entityId)
+    return newJsonResponse        
     
 
 if __name__ == '__main__':
@@ -291,11 +331,6 @@ if __name__ == '__main__':
         print('ready to run the server')
     else:
         print('there is a problem, server will not start')
-    
-#    print(listResponses)
-#    print(indexResponses)
-#    print(responseFilesFolderUrl)
-#    print(listResponses[indexResponses])
     
     run(host='localhost', port=6060, debug=True)
     
