@@ -1,12 +1,20 @@
 '''
-Created on Jan 25, 2013
+Created on Feb 14, 2013
 
-@author: AKIN
+@author: smurfs
 '''
 
+# To kick off the script, run the following from the python directory:
+#   PYTHONPATH=`pwd` python testdaemon.py start
+
+#standard python libs
+import logging
+import time
 import json
 import os
-import logging
+
+#third party libs
+from daemon import runner
 
 from bottle import get, post, delete, put, run, template, request, response
 
@@ -22,7 +30,7 @@ def prepare(testSuiteFileUrl, responseFolderUrl):
     global responseFilesFolderUrl
     global maxIndexResponses
     
-    logging.basicConfig(filename='sim.log',level=logging.DEBUG)
+    logging.basicConfig(filename='/home/smurfs/sim.log',level=logging.DEBUG)
     logging.debug('Preparing the server!')
     
     # set global variables
@@ -49,7 +57,7 @@ def readResponseFile(entityType, operationType):
     global maxIndexResponses
     
     if indexResponses >= maxIndexResponses:
-        logging.debug('end of the file, should stop')
+        logger.debug('end of the file, should stop')
         return None
     else:
         pass
@@ -68,7 +76,7 @@ def readResponseFile(entityType, operationType):
         return fileContent
     else:
         # file does not exist, failed
-        logging.critical('File does not exist, failed: ' + strFileUrl)  
+        logger.critical('File does not exist, failed: ' + strFileUrl)  
         return None 
 
 '''
@@ -79,11 +87,11 @@ def checkContentType(request):
     # check if the request is with content-type header
     tmpIndex = (request.headers.get('Content-Type')).find('application/json')
     if tmpIndex != -1:
-        logging.debug("Content-Type header is correct!")
+        logger.debug("Content-Type header is correct!")
         return True
     else:
         # TODO Return a proper message!
-        logging.critical("Return a proper message! " + request.headers.get('Content-Type'))
+        logger.critical("Return a proper message! " + request.headers.get('Content-Type'))
         return False
 
 '''
@@ -92,11 +100,11 @@ def checkContentType(request):
 def checkAuthorization(request):
     # check if the request is with authentication header
     if request.headers.get('Authorization') != None:
-        logging.debug("Authorization header is implemented!")
+        logger.debug("Authorization header is implemented!")
         return True
     else:
         # TODO Return a proper message!
-        logging.debug("Return a proper message!")
+        logger.debug("Return a proper message!")
         return False  
 
 '''
@@ -106,12 +114,12 @@ def checkAuthorization(request):
 def checkMm8Request(request):
     # check if the request is with authentication header
     if request.headers.get('Accept') == 'application/vnd.mediamanager.jbpm+json':
-        logging.debug("WARNING! This is required for now.")
-        logging.debug("Accept header is received!")
+        logger.debug("WARNING! This is required for now.")
+        logger.debug("Accept header is received!")
         return True
     else:
         # TODO Return a proper message!
-        logging.debug("Return a proper message!")
+        logger.debug("Return a proper message!")
         return False
           
      
@@ -136,20 +144,20 @@ def handleCreate(entityType):
     else:
         # this should return 412
         response.status = 412
-        logging.debug("{\"message\": \"api.invalidContentType.error\"}")
+        logger.debug("{\"message\": \"api.invalidContentType.error\"}")
     
     if checkMm8Request(request):
         pass
     else:
         response.status = 422
-        logging.debug("{\"message\":\"Invalid data format: attributes key required\"}")
+        logger.debug("{\"message\":\"Invalid data format: attributes key required\"}")
         pass
     
     dictResponse = readResponseFile(entityType, 'createEntity')
     
     if dictResponse == None:
         # response file not found
-        logging.debug('file not found so will return a not-found message')
+        logger.debug('file not found so will return a not-found message')
         response.status = 404
         indexResponses += 1
         return template('<b>CreateEntity called for {{entityType}} but the response file could not be found</b>!', entityType=entityType)
@@ -201,7 +209,7 @@ def handleDelete(entityType, entityId):
     
     if dictResponse == None:
         # response file not found
-        logging.debug('file not found so will return a not-found message')
+        logger.debug('file not found so will return a not-found message')
         response.status = 404
         indexResponses += 1
         return template('<b>DeleteEntity called for {{entityType}}:{{entityId}} but the response file could not be found</b>!', entityType=entityType, entityId=entityId)
@@ -253,7 +261,7 @@ def handleEdit(entityType, entityId):
     
     if dictResponse == None:
         # response file not found
-        logging.debug('file not found so will return a not-found message')
+        logger.debug('file not found so will return a not-found message')
         response.status = 404
         indexResponses += 1
         return template('<b>CreateEntity called for {{entityType}} but the response file could not be found</b>!', entityType=entityType)
@@ -279,6 +287,11 @@ def handleGetSingleEntity(entityType, entityId):
     global indexResponses
     global listResponses
     
+    logging.debug('get entity called!')
+    logging.debug('indexResponses: ' + str(indexResponses))
+    logging.debug('listResponses' + str(listResponses))
+    logging.debug('')
+    
     # check headers but they are not really important for read
     if checkContentType(request):
         pass
@@ -294,20 +307,20 @@ def handleGetSingleEntity(entityType, entityId):
     detached = request.query.detached
     deleted = request.query.deleted
     if detached == "":
-        logging.debug("Query Parameter detached is null")
+        logger.debug("Query Parameter detached is null")
     else:
-        logging.debug("Detached:" + detached)
+        logger.debug("Detached:" + detached)
         
     if deleted == "":
-        logging.debug("Query Parameter deleted is null")
+        logger.debug("Query Parameter deleted is null")
     else:
-        logging.debug("deleted:" + deleted)
+        logger.debug("deleted:" + deleted)
     
     dictResponse = readResponseFile(entityType, 'readSingle')
     
     if dictResponse == None:
         # TODO: file not found
-        logging.critical('file not found so will return a normal message')
+        logger.critical('file not found so will return a normal message')
         response.status = 404
         indexResponses += 1
         return template('<b>GetSingleEntity called for {{entityType}}:{{entityId}} but the response file could not be found</b>!', entityType=entityType, entityId=entityId)
@@ -326,20 +339,50 @@ def handleGetSingleEntity(entityType, entityId):
     # finally increase the index
     indexResponses += 1
     
-    return newJsonResponse        
-    
-
-#if __name__ == '__main__':
+    return newJsonResponse
 def run_simulator():
-    
+
     #if prepare('testSuite.txt', 'C:/Users/Administrator/Documents/GitHub/MMServerStub/MMServer/test'):
-    if prepare('testSuite.txt', '/home/smurfs/RobotWorkspace/MMServerStub/MMServer/test'):
-        logging.debug('ready to run the server')
+    if prepare('/home/smurfs/RobotWorkspace/MMServerStub/MMServer/testSuite.txt', '/home/smurfs/RobotWorkspace/MMServerStub/MMServer/test'):
+        logger.debug('ready to run the server')
     else:
-        logging.debug('there is a problem, server will not start')
+        logger.debug('there is a problem, server will not start')
     
     run(host='localhost', port=6060, debug=True)
     
-    logging.debug('server is running')
+    logger.debug('server is running')
     
     pass
+
+class App():
+   
+    def __init__(self):
+        self.stdin_path = '/dev/null'
+        self.stdout_path = '/dev/tty'
+        self.stderr_path = '/dev/tty'
+        self.pidfile_path =  '/tmp/testdaemon.pid'
+        self.pidfile_timeout = 5
+           
+    def run(self):
+        run_simulator()
+        while True:
+            #Main code goes here ...
+            #Note that logger level needs to be set to logger.DEBUG before this shows up in the logs
+            logger.debug("Debug message")
+            logger.info("Info message")
+            logger.warn("Warning message")
+            logger.error("Error message")
+            time.sleep(10)
+
+app = App()
+logger = logging.getLogger("DaemonLog")
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler = logging.FileHandler("/home/smurfs/testdaemon.log")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+daemon_runner = runner.DaemonRunner(app)
+#This ensures that the logger file handle does not get closed during daemonization
+daemon_runner.daemon_context.files_preserve=[handler.stream]
+daemon_runner.do_action()
