@@ -15,7 +15,7 @@ import os
 
 #third party libs
 from daemon import runner
-
+from config import config
 from bottle import get, post, delete, put, run, template, request, response
 
 listResponses = []
@@ -343,7 +343,7 @@ def handleGetSingleEntity(entityType, entityId):
 def run_simulator():
 
     #if prepare('testSuite.txt', 'C:/Users/Administrator/Documents/GitHub/MMServerStub/MMServer/test'):
-    if prepare('/home/smurfs/RobotWorkspace/MMServerStub/MMServer/testSuite.txt', '/home/smurfs/RobotWorkspace/MMServerStub/MMServer/test'):
+    if prepare(config['TestSuiteFilePath'], config['ResponseFolderPath']):
         logger.debug('ready to run the server')
     else:
         logger.debug('there is a problem, server will not start')
